@@ -1,4 +1,4 @@
-require("dotenv").config();
+const config = require('./config');
 const fs = require("fs");
 const path = require("path");
 const { Client, GatewayIntentBits, Collection } = require("discord.js");
@@ -36,4 +36,4 @@ for (const file of eventFiles) {
   client.on(eventName, (...args) => event.execute(...args, client));
 }
 
-client.login(process.env.TOKEN);
+client.login(config.token);
