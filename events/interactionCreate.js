@@ -1,9 +1,6 @@
 // 📁 events/interactionCreate.js
 
-// 📁 events/interactionCreate.js
-
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-
 const {
   ChannelType,
   ButtonBuilder,
@@ -142,12 +139,44 @@ module.exports = {
           )
         );
 
-      // 🛠️ لازم return هنا علشان مايحصلش Unknown Interaction
       return interaction.showModal(modal);
     }
 
-    // 📩 استلام بيانات الشراكة من النموذج
-    if (interaction.isModalSubmit() && interaction.customId === 'partnerModal') {
+// 📩 استلام بيانات الشراكة من النموذج
+if (interaction.isModalSubmit() && interaction.customId === 'partnerModal') {
+  // 🛑 تحقق لو الشراكة أُرسلت من قبل
+  if (interaction.channel.topic && interaction.channel.topic.includes('PARTNER_SENT')) {
+
+    // ✅ تعطيل زر "إرسال رسالة الشراكة" فقط
+    try {
+      const messages = await interaction.channel.messages.fetch({ limit: 10 });
+      const botMessage = messages.find(msg =>
+        msg.author.id === client.user.id &&
+        msg.components.length > 0
+      );
+
+      if (botMessage) {
+        const row = botMessage.components[0];
+
+        const disabledComponents = row.components.map(button => {
+          if (button.customId === 'submit_partner') {
+            return ButtonBuilder.from(button).setDisabled(true);
+          }
+          return ButtonBuilder.from(button); // زر الإغلاق يفضل شغال
+        });
+
+        const disabledRow = new ActionRowBuilder().addComponents(disabledComponents);
+        await botMessage.edit({ components: [disabledRow] });
+      }
+    } catch (err) {
+      console.error('❌ فشل تعطيل الزر:', err.message);
+    }
+
+    return await interaction.reply({
+      content: '🚫 تم إرسال الشراكة بالفعل في هذه التذكرة.',
+      ephemeral: true,
+    });
+  }
       const name = interaction.fields.getTextInputValue('serverName');
       const desc = interaction.fields.getTextInputValue('serverDesc');
       const invite = interaction.fields.getTextInputValue('serverInvite');
@@ -157,7 +186,6 @@ module.exports = {
       }
 
       try {
-        // ✅ استخدم fetch المدمج في Node.js
         const inviteCode = invite.split('/').pop();
         const response = await fetch(`https://discord.com/api/v10/invites/${inviteCode}?with_counts=true`);
 
@@ -204,6 +232,13 @@ module.exports = {
         await partnerRoom.send(`# ${guildName} 🤝 ${name}
 ${desc}
 ${invite}`);
+          // 🔐 تحديد التوبيك عشان نمنع التكرار
+await interaction.channel.setTopic('PARTNER_SENT');
+
+        // 🖼️ إرسال صورة GIF إن وُجدت في config
+        if (serverConfig.gifUrl) {
+          await partnerRoom.send(serverConfig.gifUrl);
+        }
 
         const confirm = await interaction.channel.send('📤 تم إرسال الشراكة بنجاح.');
         setTimeout(() => confirm.delete().catch(() => {}), 5000);
